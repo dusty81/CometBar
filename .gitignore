@@ -1,0 +1,10 @@
+.build/
+build/
+.swiftpm/
+*.xcodeproj
+*.xcworkspace
+.DS_Store
+
+# Never commit credentials. The KVM password belongs in the Keychain only.
+*.secret
+secrets.*

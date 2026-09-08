@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>CometBar</string>
+    <key>CFBundleDisplayName</key>
+    <string>CometBar</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.djs.cometbar</string>
+    <key>CFBundleExecutable</key>
+    <string>CometBar</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+
+    <!-- Menu bar only: no Dock icon, no app switcher entry. -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- The Comet X uses a self-signed cert on its LAN address. The client
+         scopes its trust exception to that one host in code; this declares the
+         plaintext/local-network posture for the same host only. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>glkvm.local</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+                <key>NSIncludesSubdomains</key>
+                <false/>
+            </dict>
+        </dict>
+    </dict>
+
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>CometBar talks to your Comet X KVM on the local network to read and change the active port.</string>
+</dict>
+</plist>
