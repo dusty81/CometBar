@@ -1,11 +1,18 @@
 import Foundation
 
-/// Reads and (optionally) changes macOS lid-close sleep behaviour.
+/// Reads and writes macOS lid-close sleep behaviour.
 ///
-/// SCOPE: this whole type is behind `FeatureFlags.clamshellControl`, which is
-/// OFF by default. Dusty's EDID config currently works and he has not yet
-/// confirmed whether clamshell survives repeated switch cycles. Reading status
-/// is always safe; writing is not wired up yet on purpose.
+/// Reading requires no privileges. Writing (`setLidSleepDisabled`) calls
+/// `pmset -a`, which needs root — it is only ever invoked by the
+/// `kvm-clamshelld` root LaunchDaemon (see `ClamshellDaemonLoop`), never
+/// directly by CometBar or comet-cli, which run as the logged-in user.
+///
+/// The app and the daemon coordinate through `controlFlagURL`, a small
+/// user-owned file: the app (unprivileged) writes "0"/"1" to say whether the
+/// workaround should be active at all; the daemon (root) reads it, combines
+/// it with live dock presence, and applies `pmset` accordingly. This avoids
+/// any privilege-escalation code in the app itself, per CLAUDE.md's stated
+/// preference.
 public struct ClamshellController: Sendable {
 
     /// Reading requires no privileges.
@@ -29,28 +36,58 @@ public struct ClamshellController: Sendable {
         return false
     }
 
-    /// Writing requires root, which a GUI app does not have.
-    ///
-    /// Three options are on the table; see the "unresolved design question"
-    /// section of CLAUDE.md. Dusty's stated preference is (1): signal the
-    /// existing root LaunchDaemon `com.djs.kvm-clamshell` rather than
-    /// implementing privilege escalation in the app.
-    ///
-    /// Do NOT implement SMAppService or a sudoers rule without asking him.
+    /// Writes `pmset -a disablesleep <0|1>`. Requires root.
     public static func setLidSleepDisabled(_ disabled: Bool) throws {
-        throw ClamshellError.notImplemented
+        _ = try run("/usr/bin/pmset", ["-a", "disablesleep", disabled ? "1" : "0"])
+    }
+
+    // MARK: - App <-> daemon coordination
+
+    /// Owned by the primary user (set up by the daemon installer), so the
+    /// unprivileged app can write it while the root daemon can always read
+    /// it regardless of file permissions.
+    public static let controlFlagURL = URL(
+        fileURLWithPath: "/Library/Application Support/CometKit/clamshell-enabled"
+    )
+
+    public static let daemonPlistURL = URL(
+        fileURLWithPath: "/Library/LaunchDaemons/com.djs.kvm-clamshell.plist"
+    )
+
+    /// Whether the clamshell workaround is turned on. Defaults to false
+    /// (matching the old compile-time `FeatureFlags.clamshellControl`) if the
+    /// control file is missing — e.g. the daemon hasn't been installed yet.
+    public static func isControlEnabled() -> Bool {
+        guard let raw = try? String(contentsOf: controlFlagURL, encoding: .utf8) else {
+            return false
+        }
+        return raw.trimmingCharacters(in: .whitespacesAndNewlines) == "1"
+    }
+
+    /// Flips the control flag. Throws if the control file doesn't exist yet
+    /// (the daemon installer creates it) rather than silently no-opping.
+    public static func setControlEnabled(_ enabled: Bool) throws {
+        guard FileManager.default.fileExists(atPath: controlFlagURL.path) else {
+            throw ClamshellError.daemonNotInstalled
+        }
+        try (enabled ? "1" : "0").write(to: controlFlagURL, atomically: false, encoding: .utf8)
+    }
+
+    public static func isDaemonInstalled() -> Bool {
+        FileManager.default.fileExists(atPath: daemonPlistURL.path)
     }
 
     public enum ClamshellError: Error, LocalizedError {
-        case notImplemented
+        case daemonNotInstalled
         case commandFailed(String)
 
         public var errorDescription: String? {
             switch self {
-            case .notImplemented:
+            case .daemonNotInstalled:
                 return """
-                Changing lid-sleep needs root. Decide the privilege approach \
-                first — see CLAUDE.md.
+                The kvm-clamshelld LaunchDaemon isn't installed yet. Run, with sudo, \
+                install-clamshell-daemon.sh — either from the app bundle's \
+                Contents/Resources, or scripts/ in a repo checkout.
                 """
             case let .commandFailed(message):
                 return message
@@ -79,8 +116,6 @@ public struct ClamshellController: Sendable {
 }
 
 public struct FeatureFlags {
-    /// Off until Dusty confirms clamshell behaviour across switch cycles.
-    public static let clamshellControl = false
     /// Off until the Flexbar is confirmed to sit off the KVM'd USB path.
     public static let flexbarIntegration = false
 }

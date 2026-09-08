@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "CometKit", targets: ["CometKit"]),
         .executable(name: "comet-cli", targets: ["comet-cli"]),
         .executable(name: "CometBar", targets: ["CometBar"]),
+        .executable(name: "kvm-clamshelld", targets: ["kvm-clamshelld"]),
     ],
     targets: [
         .target(
@@ -21,6 +22,11 @@ let package = Package(
         ),
         .executableTarget(
             name: "CometBar",
+            dependencies: ["CometKit"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .executableTarget(
+            name: "kvm-clamshelld",
             dependencies: ["CometKit"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),

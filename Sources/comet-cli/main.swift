@@ -10,23 +10,29 @@ func usage() -> Never {
     print("""
     Usage: \(name) <command>
 
-      status          Show active port, link state and EDID assignment
+      status          Show active port, link state and port names
       info            Firmware and health
       set <1-4>       Switch the KVM to a port
+      name <1-4> <n>  Set a port's friendly name on the device
       dock            Report whether the OWC dock is attached
-      clamshell       Report macOS lid-close sleep state
+      clamshell       Report macOS lid-close sleep state and control flag
+      clamshell on|off  Turn the kvm-clamshelld workaround on/off
 
     Env: KVM_HOST (default glkvm.local), KVM_USER (default admin)
     """)
     exit(1)
 }
 
-func makeClient() -> CometClient {
+func currentSettings() -> CometSettings {
     let env = ProcessInfo.processInfo.environment
-    return CometClient(
-        host: env["KVM_HOST"] ?? "glkvm.local",
-        user: env["KVM_USER"] ?? "admin"
-    )
+    var settings = SettingsStore.load()
+    if let host = env["KVM_HOST"] { settings.host = host }
+    if let user = env["KVM_USER"] { settings.user = user }
+    return settings
+}
+
+func makeClient(_ settings: CometSettings) -> CometClient {
+    CometClient(host: settings.host, user: settings.user)
 }
 
 func fail(_ error: Error) -> Never {
@@ -39,12 +45,13 @@ func fail(_ error: Error) -> Never {
 let arguments = Array(CommandLine.arguments.dropFirst())
 guard let command = arguments.first else { usage() }
 
+let settings = currentSettings()
+
 switch command {
 case "status":
     do {
-        let state = try await makeClient().switchState()
+        let state = try await makeClient(settings).switchState()
         print("Active port : \(state.activeID) (channel \(state.activeChannel))  synced=\(state.synced)")
-        print("EDID in use : \(state.edidsInUse.isEmpty ? "NONE" : state.edidsInUse.joined(separator: ", "))")
         print("")
         print("  port  video  usb   name")
         for port in state.ports {
@@ -55,17 +62,18 @@ case "status":
                     ? text
                     : text + String(repeating: " ", count: width - text.count)
             }
+            let displayName = port.name.isEmpty ? "(unnamed)" : port.name
             print(marker
                 + " " + pad(port.id, 6)
                 + pad(port.videoLinked ? "up" : "--", 7)
                 + pad(port.usbLinked ? "up" : "--", 6)
-                + (port.name.isEmpty ? "(unnamed)" : port.name))
+                + displayName)
         }
     } catch { fail(error) }
 
 case "info":
     do {
-        let info = try await makeClient().info()
+        let info = try await makeClient(settings).info()
         print("kvmd      : \(info.kvmdVersion)")
         print("kernel    : \(info.kernelRelease)")
         print("platform  : \(info.platformModel)")
@@ -77,9 +85,19 @@ case "info":
 case "set":
     guard arguments.count == 2, let number = Int(arguments[1]) else { usage() }
     do {
-        try await makeClient().setActive(portNumber: number)
+        try await makeClient(settings).setActive(portNumber: number)
         print("Switched to port \(number).")
         print("Note: keyboard and mouse have moved with it — this Mac can't switch back.")
+    } catch { fail(error) }
+
+case "name":
+    guard arguments.count == 3,
+          let number = Int(arguments[1]),
+          let port = PortNumber(number)
+    else { usage() }
+    do {
+        try await makeClient(settings).setPortName(port, name: arguments[2])
+        print("Port \(number) renamed to \"\(arguments[2])\".")
     } catch { fail(error) }
 
 case "dock":
@@ -89,11 +107,20 @@ case "dock":
         : "OWC Thunderbolt 3 Dock: not detected")
 
 case "clamshell":
-    do {
-        let disabled = try ClamshellController.isLidSleepDisabled()
-        print("Lid-close sleep: \(disabled ? "DISABLED (stays awake)" : "ENABLED (normal)")")
-        print("Control flag   : \(FeatureFlags.clamshellControl ? "on" : "off (read-only)")")
-    } catch { fail(error) }
+    if arguments.count == 2 {
+        guard arguments[1] == "on" || arguments[1] == "off" else { usage() }
+        do {
+            try ClamshellController.setControlEnabled(arguments[1] == "on")
+            print("Clamshell control \(arguments[1]). The kvm-clamshelld daemon applies it on the next reconcile.")
+        } catch { fail(error) }
+    } else {
+        do {
+            let disabled = try ClamshellController.isLidSleepDisabled()
+            print("Lid-close sleep : \(disabled ? "DISABLED (stays awake)" : "ENABLED (normal)")")
+            print("Control flag    : \(ClamshellController.isControlEnabled() ? "on" : "off")")
+            print("Daemon installed: \(ClamshellController.isDaemonInstalled() ? "yes" : "no")")
+        } catch { fail(error) }
+    }
 
 default:
     usage()

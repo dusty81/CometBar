@@ -123,10 +123,11 @@ closed, macOS sees the display vanish, ends clamshell mode, and sleeps
 immediately. The workaround is `sudo pmset -a disablesleep 1`, which decouples
 sleep from lid state.
 
-**Status: deliberately optional, behind a feature flag.** Dusty's EDID config
-currently works well and he does not want to change it, but has not yet
-confirmed whether clamshell survives several switch cycles. Build switching
-first; keep this compiled but off by default.
+**Status: implemented, off by default, opt-in per-machine.** Dusty's EDID
+config works well and he has not confirmed whether clamshell survives several
+switch cycles across every setup — controlled at runtime (Settings toggle /
+`comet-cli clamshell on|off`), not a compile-time flag, and defaults to off on
+a fresh install (`scripts/install-clamshell-daemon.sh`).
 
 ### Two traps already hit in the shell version
 
@@ -137,21 +138,35 @@ first; keep this compiled but off by default.
    `ioreg`/`pmset` dies on SIGPIPE, and the pipeline reports failure even on a
    match. Capture output to a variable first. (Relevant if any shell survives.)
 
-### The unresolved design question: root
+### The root design question — resolved 2026-09-08
 
-`pmset` needs root; a GUI app doesn't have it. Options, in Dusty's stated order
-of preference:
+`pmset` needs root; a GUI app doesn't have it. Went with Dusty's preferred
+option: a root **LaunchDaemon**, `com.djs.kvm-clamshell`, running the
+`kvm-clamshelld` target (`Sources/kvm-clamshelld`, logic in
+`CometKit/ClamshellDaemonLoop.swift`). It watches OWC dock presence itself
+(event-driven, reusing `DockWatcher`) and applies `pmset -a disablesleep`
+directly — the GUI app contains **no** privilege-escalation code and never
+calls `pmset` itself.
 
-1. **Reuse the existing root LaunchDaemon** (`com.djs.kvm-clamshell`, installed
-   at `/Library/LaunchDaemons/`) as the privileged worker; the app signals intent
-   to it. No escalation code, no signing requirements. **Preferred.**
-2. `SMAppService` privileged helper + XPC — correct for a single bundle, most
-   work, needs a Developer ID cert.
-3. Sudoers `NOPASSWD` for `/usr/sbin/pmset` — fastest, but any local process
-   running as Dusty can then disable system sleep. He owns HITRUST/SOC 2
-   compliance at work, so this is a deliberate decision, not a default.
+Note this daemon did **not** already exist on Dusty's Mac when this was
+built, despite an earlier version of this doc claiming otherwise — verified
+by checking `/Library/LaunchDaemons/` directly. If you're reading this after
+a machine rebuild/reimage and the daemon is missing again, re-run
+`scripts/install-clamshell-daemon.sh` (see README's "Clamshell workaround"
+section).
 
-Do not implement 2 or 3 without asking.
+Coordination between the unprivileged app and the root daemon is a single
+plain-text control file, `ClamshellController.controlFlagURL`
+(`/Library/Application Support/CometKit/clamshell-enabled`, "0" or "1"),
+owned by Dusty's user account so the app can flip it without any elevated
+privileges; the daemon (root) can always read it regardless of permissions
+and polls it every 10s. This is why option 1 was viable without XPC: the
+daemon needs no bidirectional channel, just a value to read.
+
+**Do not implement `SMAppService`+XPC or a sudoers `NOPASSWD` rule** — both
+were explicitly rejected (the former as unnecessary complexity now that the
+daemon exists, the latter as a compliance risk on a HITRUST/SOC 2-relevant
+machine, per Dusty).
 
 ---
 
@@ -236,10 +251,13 @@ Reference values confirmed live on this Mac: OWC dock `0x1E91` → SD Card Reade
 ```
 Package.swift
 Sources/
-  CometKit/          Reusable core — API client, models, Keychain, watchers
+  CometKit/          Reusable core — API client, models, Keychain, watchers,
+                     clamshell control/daemon logic
   CometBar/          SwiftUI MenuBarExtra app (LSUIElement, no dock icon)
   comet-cli/         CLI front end; fastest way to test CometKit by hand
+  kvm-clamshelld/    Root LaunchDaemon entry point (just calls into CometKit)
 Tests/CometKitTests/
+scripts/             install/uninstall-clamshell-daemon.sh
 legacy/              The shell scripts this replaces, kept for reference
 ```
 

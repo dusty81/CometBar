@@ -14,11 +14,13 @@ public actor CometClient {
     public init(
         host: String = "glkvm.local",
         user: String = "admin",
-        keychain: Keychain = Keychain()
+        keychain: Keychain? = nil
     ) {
         self.host = host
         self.user = user
-        self.keychain = keychain
+        // Default to the Keychain entry matching this user, so switching the
+        // configured account also switches which password gets read.
+        self.keychain = keychain ?? Keychain(account: user)
         self.session = URLSession(
             configuration: .ephemeral,
             delegate: SelfSignedTrustDelegate(allowedHost: host),
@@ -59,7 +61,6 @@ public actor CometClient {
 
         let videoLinks = (result["video"] as? [String: Any])?["links"] as? [Bool] ?? []
         let usbLinks = (result["usb_otg"] as? [String: Any])?["links"] as? [Bool] ?? []
-        let edidsUsed = (result["edids"] as? [String: Any])?["used"] as? [String] ?? []
 
         let ports: [SwitchState.Port] = rawPorts.compactMap { raw in
             guard let id = raw["id"] as? String,
@@ -78,8 +79,7 @@ public actor CometClient {
             activeID: activeID,
             activeChannel: activeChannel,
             synced: summary["synced"] as? Bool ?? false,
-            ports: ports,
-            edidsInUse: edidsUsed
+            ports: ports
         )
     }
 
@@ -105,6 +105,18 @@ public actor CometClient {
     public func checkAuth() async throws -> Bool {
         _ = try await get("/api/auth/check")
         return true
+    }
+
+    /// Sets a port's friendly name on the device itself.
+    ///
+    /// Confirmed live on 2026-09-08: `set_port_params` takes `port` as the
+    /// same float-style ID `set_active` wants (`port=1.4`, never a channel
+    /// index) plus a `name` field, and touches only the name — video links,
+    /// ATX config, and the active port were all confirmed unchanged. Still,
+    /// per CLAUDE.md, don't extend this to other `set_port_params` fields
+    /// (EDID assignment etc.) without re-verifying against the live device.
+    public func setPortName(_ port: PortNumber, name: String) async throws {
+        _ = try await post("/api/switch/set_port_params", query: ["port": port.apiValue, "name": name])
     }
 
     // MARK: - Transport

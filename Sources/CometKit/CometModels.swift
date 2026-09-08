@@ -50,9 +50,6 @@ public struct SwitchState: Sendable, Equatable {
     public let activeChannel: Int      // summary.active_port, 0-based
     public let synced: Bool
     public let ports: [Port]
-    /// Port IDs with an EDID assigned. Empty means EDID emulation is off,
-    /// which is the likely cause of the clamshell/HPD problem.
-    public let edidsInUse: [String]
 
     public var activePort: PortNumber? {
         guard let n = Int(activeID.split(separator: ".").last ?? "") else { return nil }
@@ -75,6 +72,7 @@ public enum CometError: Error, LocalizedError, Sendable {
     case badPort(Int)
     case http(status: Int, body: String)
     case decoding(String)
+    case keychainWrite(OSStatus)
 
     public var errorDescription: String? {
         switch self {
@@ -97,6 +95,8 @@ public enum CometError: Error, LocalizedError, Sendable {
             return "HTTP \(status)\(hint): \(body)"
         case let .decoding(what):
             return "Could not decode the device response: \(what)"
+        case let .keychainWrite(status):
+            return "Could not save the password to the Keychain (OSStatus \(status))."
         }
     }
 }

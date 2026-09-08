@@ -36,4 +36,27 @@ public struct Keychain: Sendable {
         }
         return password
     }
+
+    /// Creates or overwrites the stored password for `service`/`account`.
+    ///
+    /// Used by the settings pane. Never called with an empty string — the UI
+    /// leaves the password untouched when the field is blank.
+    public func savePassword(_ password: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        let data = Data(password.utf8)
+
+        if SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess {
+            let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+            guard status == errSecSuccess else { throw CometError.keychainWrite(status) }
+        } else {
+            var addQuery = query
+            addQuery[kSecValueData as String] = data
+            let status = SecItemAdd(addQuery as CFDictionary, nil)
+            guard status == errSecSuccess else { throw CometError.keychainWrite(status) }
+        }
+    }
 }

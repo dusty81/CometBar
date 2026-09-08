@@ -47,8 +47,7 @@ final class SwitchStateTests: XCTestCase {
             activeID: "1.4",
             activeChannel: 3,
             synced: true,
-            ports: [],
-            edidsInUse: []
+            ports: []
         )
         XCTAssertEqual(state.activePort?.number, 4)
         XCTAssertEqual(state.activePort?.channel, state.activeChannel)
