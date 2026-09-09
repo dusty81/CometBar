@@ -1,4 +1,4 @@
-# kvm-utility
+# CometBar
 
 macOS menu bar utility for a **GL.iNet Comet X (GL-RM4PE)** quad-port KVM.
 
@@ -42,6 +42,17 @@ The menu bar app polls `/api/switch` on a timer (default 45s, configurable in
 Settings) since the device has no push mechanism — separate from the
 event-driven IOKit dock watcher, which never polls.
 
+## Keyboard shortcuts
+
+`⌘⌥1` – `⌘⌥4` switch ports system-wide, whether or not CometBar's menu is
+open or frontmost (a system-wide Carbon hotkey, not just a menu shortcut).
+
+This can only ever switch **away** from the Mac it's pressed on: once the KVM
+switches away, that Mac's keyboard physically goes with it, so the same
+shortcut pressed there can't reach back. If you use CometBar on more than one
+of the KVM's machines, install it on all of them and use whichever one's
+keyboard is currently live to switch away from it.
+
 ## Clamshell workaround (optional)
 
 The Comet X drops HDMI hotplug detect on inactive ports, which makes macOS
@@ -51,9 +62,17 @@ this is a separate root LaunchDaemon (`com.djs.kvm-clamshell`, built from the
 `kvm-clamshelld` target) that watches OWC dock presence itself and keeps sleep
 disabled exactly while docked. It's off by default until installed.
 
+**Install it from Settings**: the Clamshell section has an "Install
+background helper…" button. Clicking it runs the bundled install script with
+administrator privileges via the standard macOS admin-password prompt — no
+Terminal needed. An "Uninstall background helper…" button appears once it's
+installed.
+
 `make app`/`make install` bundle the daemon binary and its install/uninstall
 scripts into `CometBar.app/Contents/Resources` — copying the `.app` to
-another Mac carries everything needed, no repo checkout required there:
+another Mac carries everything needed for that button to work there too, no
+repo checkout required. The same scripts are also runnable directly if you'd
+rather not use the button:
 
 ```sh
 sudo /Applications/CometBar.app/Contents/Resources/install-clamshell-daemon.sh
