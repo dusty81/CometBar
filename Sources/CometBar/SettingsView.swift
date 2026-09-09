@@ -69,7 +69,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(Tab.allCases, selection: $selection) { tab in
-                Label(tab.label, systemImage: tab.systemImage)
+                Label(tab.label, systemImage: tab.systemImage).tag(tab)
             }
             .navigationSplitViewColumnWidth(min: 140, ideal: 150)
         } detail: {
@@ -113,12 +113,21 @@ struct SettingsView: View {
             TextField("Host", text: $host)
             TextField("Username", text: $user)
             SecureField("Password", text: $password, prompt: Text("Unchanged"))
-            Stepper(
-                "Refresh every \(Int(refreshIntervalSeconds))s",
-                value: $refreshIntervalSeconds,
-                in: CometSettings.minimumRefreshIntervalSeconds...300,
-                step: 15
-            )
+            // See the comment in switchingPane: a Stepper's label is fused
+            // to its control on a different alignment guide than a
+            // TextField's, so a plain labeled Stepper here renders shifted
+            // left of the fields above it.
+            HStack {
+                Text("Refresh every \(Int(refreshIntervalSeconds))s")
+                Spacer()
+                Stepper(
+                    "",
+                    value: $refreshIntervalSeconds,
+                    in: CometSettings.minimumRefreshIntervalSeconds...300,
+                    step: 15
+                )
+                .labelsHidden()
+            }
         }
     }
 
@@ -147,12 +156,23 @@ struct SettingsView: View {
         Form {
             Toggle("Show \"Switching to…\" confirmation", isOn: $switchConfirmationEnabled)
             if switchConfirmationEnabled {
-                Stepper(
-                    "Wait \(switchConfirmationDelaySeconds.formatted(.number.precision(.fractionLength(0...1))))s before switching",
-                    value: $switchConfirmationDelaySeconds,
-                    in: CometSettings.minimumSwitchConfirmationDelaySeconds...CometSettings.maximumSwitchConfirmationDelaySeconds,
-                    step: 0.5
-                )
+                // Not a plain labeled Stepper: Form aligns a Toggle's checkbox
+                // and a Stepper's incrementer on different trailing guides
+                // (a Stepper's label is fused to its control, a Toggle's
+                // isn't), so mixing them in one Form pushed this row's label
+                // off to the left, clipped. An explicit HStack keeps it
+                // consistent with the Toggle above.
+                HStack {
+                    Text("Wait \(switchConfirmationDelaySeconds.formatted(.number.precision(.fractionLength(0...1))))s before switching")
+                    Spacer()
+                    Stepper(
+                        "",
+                        value: $switchConfirmationDelaySeconds,
+                        in: CometSettings.minimumSwitchConfirmationDelaySeconds...CometSettings.maximumSwitchConfirmationDelaySeconds,
+                        step: 0.5
+                    )
+                    .labelsHidden()
+                }
             }
             Text("Gives you a moment to confirm a hotkey or click landed before the KVM actually switches — useful since switching moves your keyboard and mouse with it.")
                 .font(.footnote)
