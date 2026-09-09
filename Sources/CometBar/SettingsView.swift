@@ -1,4 +1,5 @@
 import CometKit
+import ServiceManagement
 import SwiftUI
 
 /// Host/user/password configuration, plus per-port friendly names.
@@ -28,9 +29,19 @@ struct SettingsView: View {
     @State private var daemonActionError: String?
     @State private var dockVendorID: Int = CometSettings.defaultDockVendorID
     @State private var detectedUSBDevices: [USBDeviceInfo] = []
+    @State private var startAtLogin = false
+    @State private var loginItemError: String?
 
     var body: some View {
         Form {
+            Section("General") {
+                Toggle("Start CometBar at login", isOn: $startAtLogin)
+                    .onChange(of: startAtLogin, toggleStartAtLogin)
+                if let loginItemError {
+                    Text(loginItemError).font(.footnote).foregroundStyle(.red)
+                }
+            }
+
             Section("Connection") {
                 TextField("Host", text: $host)
                 TextField("Username", text: $user)
@@ -139,7 +150,12 @@ struct SettingsView: View {
             }
         }
         .padding(20)
-        .frame(minWidth: 440, idealWidth: 440, minHeight: 420, idealHeight: 460)
+        // No fixed height: sections come and go (daemon installed or not,
+        // errors appearing) so a fixed/min height either clips new content
+        // or leaves dead space. fixedSize lets the window match content
+        // exactly, growing or shrinking as sections change.
+        .frame(minWidth: 440, idealWidth: 440)
+        .fixedSize(horizontal: false, vertical: true)
         .onAppear(perform: load)
         .onChange(of: model.state) { _, _ in loadPortNames() }
     }
@@ -150,9 +166,25 @@ struct SettingsView: View {
         user = settings.user
         refreshIntervalSeconds = settings.refreshIntervalSeconds
         dockVendorID = settings.dockVendorID
+        startAtLogin = SMAppService.mainApp.status == .enabled
         rescanUSBDevices()
         loadPortNames()
         loadClamshellStatus()
+    }
+
+    private func toggleStartAtLogin(_ wasOn: Bool, _ isOn: Bool) {
+        loginItemError = nil
+        do {
+            if isOn {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            loginItemError = error.localizedDescription
+            // Reflect what actually happened rather than the failed intent.
+            startAtLogin = SMAppService.mainApp.status == .enabled
+        }
     }
 
     private func rescanUSBDevices() {

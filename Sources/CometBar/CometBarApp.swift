@@ -23,7 +23,9 @@ struct CometBarApp: App {
         // fully off-screen here, which is why port names looked "missing":
         // the window was never visible at all. Centering avoids that.
         .defaultPosition(.center)
-        .defaultSize(width: 440, height: 480)
+        // Just an initial guess — SettingsView's .fixedSize corrects this to
+        // match actual content on first layout and whenever sections change.
+        .defaultSize(width: 440, height: 640)
     }
 }
 
@@ -55,6 +57,7 @@ final class AppModel {
     private var dockWatcher: DockWatcher?
     private var refreshTask: Task<Void, Never>?
     private var hotKeyManager: HotKeyManager?
+    private let switchingOverlay = SwitchingOverlay()
 
     init() {
         let loaded = SettingsStore.load()
@@ -112,6 +115,13 @@ final class AppModel {
     /// Switches the KVM. Note this is one-directional from this Mac's point of
     /// view — see the switch-back constraint in CLAUDE.md.
     func select(port: Int) {
+        // Shown immediately, before the API call — this can be triggered by
+        // the global hotkey with no menu open, so without instant feedback
+        // there's no way to tell a keystroke registered before the KVM
+        // actually cuts over a moment later.
+        let name = state?.ports.first(where: { $0.number == port }).map(displayName(for:)) ?? "Port \(port)"
+        switchingOverlay.show(text: "Switching to \(name)…")
+
         Task {
             busy = true
             defer { busy = false }
