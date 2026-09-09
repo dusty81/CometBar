@@ -31,6 +31,8 @@ struct SettingsView: View {
     @State private var detectedUSBDevices: [USBDeviceInfo] = []
     @State private var startAtLogin = false
     @State private var loginItemError: String?
+    @State private var switchConfirmationEnabled = CometSettings.defaultSwitchConfirmationEnabled
+    @State private var switchConfirmationDelaySeconds = CometSettings.defaultSwitchConfirmationDelaySeconds
 
     var body: some View {
         Form {
@@ -52,6 +54,21 @@ struct SettingsView: View {
                     in: CometSettings.minimumRefreshIntervalSeconds...300,
                     step: 15
                 )
+            }
+
+            Section("Switching") {
+                Toggle("Show \"Switching to…\" confirmation", isOn: $switchConfirmationEnabled)
+                if switchConfirmationEnabled {
+                    Stepper(
+                        "Wait \(switchConfirmationDelaySeconds.formatted(.number.precision(.fractionLength(0...1))))s before switching",
+                        value: $switchConfirmationDelaySeconds,
+                        in: CometSettings.minimumSwitchConfirmationDelaySeconds...CometSettings.maximumSwitchConfirmationDelaySeconds,
+                        step: 0.5
+                    )
+                }
+                Text("Gives you a moment to confirm a hotkey or click landed before the KVM actually switches — useful since switching moves your keyboard and mouse with it.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Port names") {
@@ -166,6 +183,8 @@ struct SettingsView: View {
         user = settings.user
         refreshIntervalSeconds = settings.refreshIntervalSeconds
         dockVendorID = settings.dockVendorID
+        switchConfirmationEnabled = settings.switchConfirmationEnabled
+        switchConfirmationDelaySeconds = settings.switchConfirmationDelaySeconds
         startAtLogin = SMAppService.mainApp.status == .enabled
         rescanUSBDevices()
         loadPortNames()
@@ -273,7 +292,9 @@ struct SettingsView: View {
             host: trimmedHost,
             user: trimmedUser,
             refreshIntervalSeconds: refreshIntervalSeconds,
-            dockVendorID: dockVendorID
+            dockVendorID: dockVendorID,
+            switchConfirmationEnabled: switchConfirmationEnabled,
+            switchConfirmationDelaySeconds: switchConfirmationDelaySeconds
         )
 
         saving = true
