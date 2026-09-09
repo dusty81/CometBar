@@ -24,6 +24,8 @@ struct SettingsView: View {
     @State private var saveError: String?
     @State private var didSave = false
     @State private var saving = false
+    @State private var daemonActionInProgress = false
+    @State private var daemonActionError: String?
 
     var body: some View {
         Form {
@@ -67,10 +69,30 @@ struct SettingsView: View {
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    HStack {
+                        if daemonActionInProgress {
+                            ProgressView().controlSize(.small)
+                        }
+                        Spacer()
+                        Button("Uninstall background helper…", action: uninstallDaemonTapped)
+                            .font(.footnote)
+                            .disabled(daemonActionInProgress)
+                    }
                 } else {
-                    Text("kvm-clamshelld isn't installed — run, with sudo, install-clamshell-daemon.sh from this app's Contents/Resources.")
+                    Text("Keeping this Mac awake while docked needs a small background helper (a root LaunchDaemon) installed once. macOS will ask for your admin password.")
                         .font(.footnote)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        if daemonActionInProgress {
+                            ProgressView().controlSize(.small)
+                        }
+                        Spacer()
+                        Button("Install background helper…", action: installDaemonTapped)
+                            .disabled(daemonActionInProgress)
+                    }
+                }
+                if let daemonActionError {
+                    Text(daemonActionError).font(.footnote).foregroundStyle(.red)
                 }
             }
 
@@ -103,6 +125,36 @@ struct SettingsView: View {
         refreshIntervalSeconds = settings.refreshIntervalSeconds
         loadPortNames()
         loadClamshellStatus()
+    }
+
+    // Synchronous, not Task-wrapped: NSAppleScript's admin-privileges prompt
+    // is already a blocking native modal (Authorization Services owns that
+    // UI), and wrapping it in a Task would require capturing this non-Sendable
+    // View struct across an @Sendable closure boundary under Swift 6 strict
+    // concurrency. Blocking briefly on a system password prompt is normal —
+    // it's the same UX as any other admin-authorization dialog in macOS.
+    private func installDaemonTapped() {
+        daemonActionError = nil
+        daemonActionInProgress = true
+        defer { daemonActionInProgress = false }
+        do {
+            try DaemonInstaller.installDaemon()
+            loadClamshellStatus()
+        } catch {
+            daemonActionError = error.localizedDescription
+        }
+    }
+
+    private func uninstallDaemonTapped() {
+        daemonActionError = nil
+        daemonActionInProgress = true
+        defer { daemonActionInProgress = false }
+        do {
+            try DaemonInstaller.uninstallDaemon()
+            loadClamshellStatus()
+        } catch {
+            daemonActionError = error.localizedDescription
+        }
     }
 
     private func loadClamshellStatus() {

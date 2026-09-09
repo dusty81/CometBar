@@ -177,14 +177,20 @@ struct MenuContent: View {
                 Button {
                     if let number = port.number { model.select(port: number) }
                 } label: {
-                    Text(label(for: port, state: state))
+                    // Icon after the name, not via Label's icon slot (which
+                    // is always leading and, being NSMenuItem's actual image
+                    // slot, cropped a wider composite down to a sliver —
+                    // confirmed empirically). Concatenating Text(Image) is
+                    // inline within the title itself, so it can go anywhere,
+                    // including after the text, and isn't subject to that
+                    // crop. No keyboard-shortcut hint shown anymore — the
+                    // real, system-wide binding is HotKeyManager (Carbon),
+                    // registered once in AppModel.init and working whether or
+                    // not the menu is open.
+                    Text(name(for: port, state: state)) + Text("   ")
+                        + Text(statusImage(video: port.videoLinked, usb: port.usbLinked))
                 }
                 .disabled(model.busy || port.id == state.activeID)
-                // Hint only — this fires while the menu is open. The real,
-                // system-wide binding is HotKeyManager (Carbon), registered
-                // once in AppModel.init and working even when the menu isn't
-                // open or CometBar isn't frontmost.
-                .keyboardShortcut(shortcutKey(for: port), modifiers: [.command, .option])
             }
         }
 
@@ -222,19 +228,39 @@ struct MenuContent: View {
             .keyboardShortcut("q")
     }
 
-    private func shortcutKey(for port: SwitchState.Port) -> KeyEquivalent {
-        switch port.number {
-        case 1: return "1"
-        case 2: return "2"
-        case 3: return "3"
-        case 4: return "4"
-        default: return "0" // unreachable — port.number is always 1-4
-        }
+    private func name(for port: SwitchState.Port, state: SwitchState) -> String {
+        let marker = port.id == state.activeID ? "● " : "○ "
+        return marker + model.displayName(for: port)
     }
 
-    private func label(for port: SwitchState.Port, state: SwitchState) -> String {
-        let marker = port.id == state.activeID ? "● " : "○ "
-        let link = port.videoLinked ? "" : "  (no video)"
-        return marker + model.displayName(for: port) + link
+    /// A single composite icon (display, keyboard, and mouse glyphs side by
+    /// side, colored green/gray by connection), shown on every port every
+    /// refresh — not just when something's down — so you can tell at a
+    /// glance which port has a live monitor and keyboard/mouse before
+    /// switching to it.
+    ///
+    /// Rendered once via `ImageRenderer` and embedded inline in the title
+    /// text (`Text(Image)` concatenation) rather than through `Label`'s icon
+    /// slot — that's NSMenuItem's actual image well, which expects roughly
+    /// square dimensions and silently center-cropped a horizontal strip like
+    /// this down to a sliver (confirmed empirically). An inline image inside
+    /// the title isn't subject to that constraint.
+    private func statusImage(video: Bool, usb: Bool) -> Image {
+        let content = HStack(spacing: 3) {
+            Image(systemName: "display")
+                .foregroundStyle(video ? Color.green : Color.gray)
+            Image(systemName: "keyboard")
+                .foregroundStyle(usb ? Color.green : Color.gray)
+            Image(systemName: "computermouse")
+                .foregroundStyle(usb ? Color.green : Color.gray)
+        }
+        .font(.system(size: 13))
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = 2
+        guard let nsImage = renderer.nsImage else {
+            return Image(systemName: "questionmark.circle")
+        }
+        return Image(nsImage: nsImage)
     }
 }
