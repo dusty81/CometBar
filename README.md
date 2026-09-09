@@ -1,101 +1,77 @@
-# kvm-utility
+# CometBar
 
-macOS menu bar utility for a **GL.iNet Comet X (GL-RM4PE)** quad-port KVM.
+A macOS menu bar app for switching your **GL.iNet Comet X** KVM between
+machines — no web console, no reaching for another keyboard.
 
-Switch the active input from the menu bar instead of the web console. Optional,
-off by default: a `pmset` workaround, applied by a root LaunchDaemon, for
-macOS dropping clamshell mode when the KVM switches away.
+## What it does
 
-Replaces the shell scripts in `legacy/`.
+- **Switch inputs from the menu bar.** Click the icon, pick a machine. Done.
+- **Global keyboard shortcuts.** `⌘⌥1` – `⌘⌥4` switch ports from anywhere,
+  no need to open the menu first.
+- **See what's live before you switch.** Each port shows whether its monitor
+  and keyboard/mouse are actually connected, refreshed automatically.
+- **Name your ports.** Call them "Work MBP", "Personal Mini" — whatever makes
+  sense to you. Names live on the KVM itself, so they show up the same way
+  on every Mac you run CometBar on.
+- **Stay awake while docked.** Optional: closing your laptop lid normally
+  puts it to sleep, which is a problem when the KVM has switched away and
+  taken your only display with it. CometBar can keep your Mac awake while
+  it's docked and switch back to normal sleep the moment it's undocked —
+  installed with one click, no Terminal required.
+- **Works with your specific dock.** Point CometBar at whichever dock or hub
+  you use to tell it when you're "at your desk" — it doesn't assume one
+  particular brand.
 
-## Setup
+## Install
 
-Host, username, and per-port friendly names (e.g. "Work MBP") are configured
-in the menu bar app's Settings pane (`Settings…` in the menu, or ⌘,). The
-password is entered there too, but is never displayed back — it's written
-straight to the login Keychain and read from there on every request:
+1. Download `CometBar.zip` from the [latest release](../../releases/latest),
+   unzip it, and drag `CometBar.app` to **Applications**.
+2. Open it. Since it isn't notarized by Apple, the first launch needs a
+   right-click → **Open** (plain double-click will be blocked by Gatekeeper).
+3. Click the new menu bar icon → **Settings…** and fill in:
+   - Your Comet X's address (usually `glkvm.local`) and admin password.
+   - A friendly name for each port, if you'd like.
+4. That's it — the menu bar icon shows your active port, and switching is
+   one click (or `⌘⌥1`–`⌘⌥4`) away.
+
+## Using it
+
+**Switching ports** — click the menu bar icon and pick a machine, or use
+`⌘⌥1` through `⌘⌥4` from anywhere. One thing worth knowing: switching moves
+your keyboard and mouse along with the display, so a shortcut can only ever
+switch *away* from the Mac you're pressing it on — to switch back, use
+CometBar on whichever machine you land on (or the KVM's own controls).
+
+**Staying awake while docked** — open Settings → Clamshell and click
+**Install background helper…**. macOS will ask for your admin password once;
+after that, turn the feature on and CometBar keeps your Mac awake whenever
+it's docked, and lets it sleep normally otherwise. It only manages sleep
+while switched on — nothing changes until you flip it on.
+
+**Setting up your dock** — Settings → Dock lists your currently-connected
+USB devices by name. Pick whichever one is your dock (or hub) so CometBar
+knows when you're "at your desk." This is per-machine, since different Macs
+and different docks show up differently.
+
+**Moving to another Mac** — install CometBar there too. Your port names come
+along automatically (they live on the KVM), but you'll need to enter that
+machine's Comet X password and pick its dock once — those live on the Mac,
+not the network.
+
+## Development
+
+This is a Swift Package Manager project — `Sources/CometKit` holds the
+reusable core (API client, settings, device watchers), `Sources/CometBar` is
+the menu bar app, and `Sources/comet-cli` is a CLI for testing against the
+device without building the full app.
 
 ```sh
-security add-generic-password -a admin -s glkvm -w
+swift build && swift test   # build + unit tests
+swift run comet-cli status  # quick check against the live device
+make app && make install    # assemble and install CometBar.app
 ```
 
-(`-w` with no value prompts, keeping the password out of shell history. Not
-required if you set the password from the Settings pane instead.)
-
-## Use
-
-```sh
-swift build
-swift run comet-cli status     # active port, link state, port names
-swift run comet-cli set 2      # switch to port 2
-swift run comet-cli dock       # is the OWC dock attached?
-swift test                     # unit tests
-
-make app                       # assemble build/CometBar.app
-make install                   # copy to /Applications
-```
-
-The CLI reads the same host/user/port-name settings as the menu bar app;
-override the host or user for one invocation with `KVM_HOST` / `KVM_USER`.
-
-The menu bar app polls `/api/switch` on a timer (default 45s, configurable in
-Settings) since the device has no push mechanism — separate from the
-event-driven IOKit dock watcher, which never polls.
-
-## Clamshell workaround (optional)
-
-The Comet X drops HDMI hotplug detect on inactive ports, which makes macOS
-end clamshell mode and sleep immediately if the lid is closed. The fix is
-`pmset -a disablesleep`, which needs root — a GUI app doesn't have that, so
-this is a separate root LaunchDaemon (`com.djs.kvm-clamshell`, built from the
-`kvm-clamshelld` target) that watches OWC dock presence itself and keeps sleep
-disabled exactly while docked. It's off by default until installed.
-
-`make app`/`make install` bundle the daemon binary and its install/uninstall
-scripts into `CometBar.app/Contents/Resources` — copying the `.app` to
-another Mac carries everything needed, no repo checkout required there:
-
-```sh
-sudo /Applications/CometBar.app/Contents/Resources/install-clamshell-daemon.sh
-sudo /Applications/CometBar.app/Contents/Resources/uninstall-clamshell-daemon.sh   # reverses it
-```
-
-From a repo checkout instead, `scripts/install-clamshell-daemon.sh` works the
-same way (falls back to `.build/release/kvm-clamshelld` if there's nothing
-bundled next to it — build that first with
-`swift build -c release --product kvm-clamshelld`).
-
-Once installed, turn it on/off from CometBar's Settings pane ("Keep this Mac
-awake while docked") or `comet-cli clamshell on|off`. The app and daemon never
-talk to each other directly — the app writes a plain "0"/"1" control file the
-daemon polls, so no privilege-escalation code lives in the GUI app.
-
-**Moving to another Mac**, note what does *not* come along automatically:
-the Keychain password (`security add-generic-password -a admin -s glkvm -w`,
-or set it from Settings there), and the host/user/refresh settings (local
-`UserDefaults`, defaults to `glkvm.local`/`admin`/45s until configured). Port
-names *do* carry over — they live on the KVM itself, not per-machine.
-
-## Layout
-
-| Path | Purpose |
-|---|---|
-| `Sources/CometKit` | API client, models, Keychain, IOKit dock watcher, clamshell logic. No SwiftUI. |
-| `Sources/CometBar` | SwiftUI `MenuBarExtra` app |
-| `Sources/comet-cli` | CLI front end — quickest way to test against the device |
-| `Sources/kvm-clamshelld` | Root LaunchDaemon body — see "Clamshell workaround" above |
-| `scripts/` | Install/uninstall for the clamshell LaunchDaemon |
-| `legacy/` | The shell scripts this replaces |
-
-## Read before changing anything
-
-**[CLAUDE.md](CLAUDE.md)** holds the verified API reference and three things
-that will otherwise cost you an afternoon:
-
-- `set_active` takes the port ID as a **float** (`1.4`), not a channel index —
-  a bare index returns HTTP 500 from the handler, not a validation error.
-- The device exposes 1-based IDs *and* 0-based channels in the same response.
-- Once the KVM switches away, this Mac loses its keyboard, so the app can only
-  ever switch **away**, never back.
-
-The API is undocumented and kvmd-derived. Re-verify after firmware updates.
+**[CLAUDE.md](CLAUDE.md)** has the full technical reference — verified API
+quirks, the clamshell daemon's architecture, and a few traps that cost real
+debugging time the first time around. Worth a read before touching the
+Comet X integration code.
