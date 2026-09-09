@@ -26,6 +26,8 @@ struct SettingsView: View {
     @State private var saving = false
     @State private var daemonActionInProgress = false
     @State private var daemonActionError: String?
+    @State private var dockVendorID: Int = CometSettings.defaultDockVendorID
+    @State private var detectedUSBDevices: [USBDeviceInfo] = []
 
     var body: some View {
         Form {
@@ -58,6 +60,30 @@ struct SettingsView: View {
                 Text("Names are stored on the KVM itself, not just this Mac.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+
+            Section("Dock") {
+                Text("Used to detect whether this Mac is at its desk (for the clamshell workaround and dock status). Different dock hardware reports a different USB vendor ID, so this needs picking per machine — plug your dock in, then pick it below.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                Picker("Dock device", selection: $dockVendorID) {
+                    ForEach(detectedUSBDevices) { device in
+                        Text("\(device.name)  (\(device.vendorIDHex))").tag(device.vendorID)
+                    }
+                    if !detectedUSBDevices.contains(where: { $0.vendorID == dockVendorID }) {
+                        Text("Currently configured: \(hex(dockVendorID))").tag(dockVendorID)
+                    }
+                }
+
+                HStack {
+                    Text(model.dockPresent ? "Detected: attached" : "Detected: not attached")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Rescan USB devices", action: rescanUSBDevices)
+                        .font(.footnote)
+                }
             }
 
             Section("Clamshell") {
@@ -123,8 +149,18 @@ struct SettingsView: View {
         host = settings.host
         user = settings.user
         refreshIntervalSeconds = settings.refreshIntervalSeconds
+        dockVendorID = settings.dockVendorID
+        rescanUSBDevices()
         loadPortNames()
         loadClamshellStatus()
+    }
+
+    private func rescanUSBDevices() {
+        detectedUSBDevices = USBDeviceLister.connectedDevices()
+    }
+
+    private func hex(_ vendorID: Int) -> String {
+        "0x" + String(vendorID, radix: 16, uppercase: true)
     }
 
     // Synchronous, not Task-wrapped: NSAppleScript's admin-privileges prompt
@@ -204,7 +240,8 @@ struct SettingsView: View {
         model.settings = CometSettings(
             host: trimmedHost,
             user: trimmedUser,
-            refreshIntervalSeconds: refreshIntervalSeconds
+            refreshIntervalSeconds: refreshIntervalSeconds,
+            dockVendorID: dockVendorID
         )
 
         saving = true

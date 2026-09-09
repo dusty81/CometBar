@@ -14,7 +14,8 @@ func usage() -> Never {
       info            Firmware and health
       set <1-4>       Switch the KVM to a port
       name <1-4> <n>  Set a port's friendly name on the device
-      dock            Report whether the OWC dock is attached
+      dock            Report whether the configured dock is attached
+      usb-devices     List connected USB devices (to find your dock's vendor ID)
       clamshell       Report macOS lid-close sleep state and control flag
       clamshell on|off  Turn the kvm-clamshelld workaround on/off
 
@@ -101,10 +102,23 @@ case "name":
     } catch { fail(error) }
 
 case "dock":
-    let watcher = DockWatcher { _ in }
-    print(watcher.isDockPresent()
-        ? "OWC Thunderbolt 3 Dock: PRESENT"
-        : "OWC Thunderbolt 3 Dock: not detected")
+    let watcher = DockWatcher(vendorID: settings.dockVendorID) { _ in }
+    print("Configured vendor ID: \(String(format: "0x%X", settings.dockVendorID))")
+    print(watcher.isDockPresent() ? "Dock: PRESENT" : "Dock: not detected")
+
+case "usb-devices":
+    let devices = USBDeviceLister.connectedDevices()
+    if devices.isEmpty {
+        print("No USB devices found.")
+    } else {
+        print("  vendor id  name")
+        for device in devices {
+            print("  \(device.vendorIDHex)     \(device.name)")
+        }
+        print("")
+        print("Set the dock's vendor ID in CometBar's Settings pane, or:")
+        print("  comet-cli dock   (after configuring it there)")
+    }
 
 case "clamshell":
     if arguments.count == 2 {

@@ -45,6 +45,9 @@ final class AppModel {
             if settings.refreshIntervalSeconds != oldValue.refreshIntervalSeconds {
                 scheduleRefresh()
             }
+            if settings.dockVendorID != oldValue.dockVendorID {
+                rebuildDockWatcher()
+            }
         }
     }
 
@@ -68,15 +71,7 @@ final class AppModel {
             Task { @MainActor in self?.refresh() }
         }
 
-        let watcher = DockWatcher { [weak self] present in
-            Task { @MainActor in
-                self?.dockPresent = present
-                self?.refresh()
-            }
-        }
-        watcher.start()
-        dockWatcher = watcher
-        dockPresent = watcher.isDockPresent()
+        rebuildDockWatcher()
 
         refresh()
         scheduleRefresh()
@@ -135,6 +130,23 @@ final class AppModel {
     private func rebuildClient() {
         client = CometClient(host: settings.host, user: settings.user)
         refresh()
+    }
+
+    /// (Re)starts the dock watcher with the currently-configured vendor ID.
+    /// Different dock hardware — and the same dock model on a different
+    /// Mac — can enumerate under a different vendor ID, so this isn't a
+    /// fixed constant; see `USBDeviceLister` and the Settings "Dock" section.
+    private func rebuildDockWatcher() {
+        dockWatcher?.stop()
+        let watcher = DockWatcher(vendorID: settings.dockVendorID) { [weak self] present in
+            Task { @MainActor in
+                self?.dockPresent = present
+                self?.refresh()
+            }
+        }
+        watcher.start()
+        dockWatcher = watcher
+        dockPresent = watcher.isDockPresent()
     }
 
     /// Writes changed port names to the device (skipping unchanged ones to
