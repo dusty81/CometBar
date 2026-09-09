@@ -112,19 +112,28 @@ final class AppModel {
         }
     }
 
+    /// Give the user a moment to see "Switching to X…" and register that
+    /// their keypress/click landed before the KVM actually cuts over — the
+    /// whole point of the overlay is confirming intent before something
+    /// irreversible (from this Mac's side) happens.
+    private static let switchConfirmationDelay: Duration = .seconds(2.5)
+
     /// Switches the KVM. Note this is one-directional from this Mac's point of
     /// view — see the switch-back constraint in CLAUDE.md.
     func select(port: Int) {
-        // Shown immediately, before the API call — this can be triggered by
-        // the global hotkey with no menu open, so without instant feedback
-        // there's no way to tell a keystroke registered before the KVM
-        // actually cuts over a moment later.
+        // Shown immediately, before the delay/API call — this can be
+        // triggered by the global hotkey with no menu open, so without
+        // instant feedback there's no way to tell a keystroke registered.
         let name = state?.ports.first(where: { $0.number == port }).map(displayName(for:)) ?? "Port \(port)"
         switchingOverlay.show(text: "Switching to \(name)…")
 
         Task {
             busy = true
-            defer { busy = false }
+            defer {
+                busy = false
+                switchingOverlay.hide()
+            }
+            try? await Task.sleep(for: Self.switchConfirmationDelay)
             do {
                 try await client.setActive(portNumber: port)
                 lastError = nil

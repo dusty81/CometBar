@@ -9,17 +9,19 @@ import AppKit
 ///
 /// A non-activating borderless panel: shown without stealing focus from
 /// whatever app the hotkey was pressed in, on whichever Space is currently
-/// active, and dismissed on a fixed timer rather than tied to the actual API
-/// call completing — the point is confirming input was received, not
-/// tracking network latency.
+/// active.
+///
+/// `AppModel.select` explicitly calls `hide()` once the (deliberately
+/// delayed) switch finishes, so this timer is a safety net, not the primary
+/// dismissal path — kept longer than the confirmation delay plus a normal
+/// API round trip so it doesn't disappear mid-delay if something in the
+/// caller's own flow (e.g. a caught exception) skips the explicit hide.
 @MainActor
 final class SwitchingOverlay {
     private var panel: NSPanel?
     private var dismissWorkItem: DispatchWorkItem?
 
-    /// How long the message stays up. Long enough to read, short enough to
-    /// still feel like a flash of feedback rather than a persistent HUD.
-    private let displayDuration: TimeInterval = 1.5
+    private let displayDuration: TimeInterval = 6
 
     func show(text: String) {
         dismissWorkItem?.cancel()
