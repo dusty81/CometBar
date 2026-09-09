@@ -23,9 +23,9 @@ struct CometBarApp: App {
         // fully off-screen here, which is why port names looked "missing":
         // the window was never visible at all. Centering avoids that.
         .defaultPosition(.center)
-        // Just an initial guess — SettingsView's .fixedSize corrects this to
-        // match actual content on first layout and whenever sections change.
-        .defaultSize(width: 440, height: 640)
+        // A sidebar layout, not a resize-to-fit single list — panes scroll
+        // internally if their content is taller than this.
+        .defaultSize(width: 620, height: 440)
     }
 }
 
