@@ -50,6 +50,12 @@ struct SettingsView: View {
     @State private var user: String = ""
     @State private var password: String = ""
     @State private var portNames: [Int: String] = [:]
+    /// Guards against `save()` ever pushing `portNames` before it's been
+    /// populated from a real device snapshot — without this, saving while
+    /// `model.state` was still nil (e.g. right after launch, before the
+    /// first refresh completes) sent every port an empty name, wiping them
+    /// on the device. Real bug, really happened; see the fix's commit.
+    @State private var portNamesLoaded = false
     @State private var refreshIntervalSeconds: Double = CometSettings.defaultRefreshIntervalSeconds
     @State private var clamshellEnabled = false
     @State private var lidSleepDisabled = false
@@ -342,6 +348,7 @@ struct SettingsView: View {
             guard let number = port.number else { continue }
             portNames[number] = port.name
         }
+        portNamesLoaded = true
     }
 
     private func save() {
@@ -387,7 +394,11 @@ struct SettingsView: View {
         Task {
             defer { saving = false }
             do {
-                try await model.savePortNames(portNames)
+                // Never push port names we haven't actually loaded from the
+                // device — see the doc comment on portNamesLoaded.
+                if portNamesLoaded {
+                    try await model.savePortNames(portNames)
+                }
                 loadClamshellStatus()
                 didSave = true
             } catch {

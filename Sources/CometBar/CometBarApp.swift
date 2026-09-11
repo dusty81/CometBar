@@ -170,10 +170,23 @@ final class AppModel {
 
     /// Writes changed port names to the device (skipping unchanged ones to
     /// avoid unnecessary live-device calls) and refreshes state afterward.
+    struct NoBaselineError: LocalizedError {
+        var errorDescription: String? {
+            "Can't safely save port names without a current device snapshot — try again after the next refresh."
+        }
+    }
+
+    /// Diffs `names` against the device's actual current names and only
+    /// writes the ones that changed. Refuses to run at all without a live
+    /// `state` snapshot to diff against — without `state`, every name would
+    /// look "changed" relative to an empty baseline, silently wiping every
+    /// port. (This happened for real: SettingsView could call this before
+    /// its local cache had ever loaded from the device.)
     func savePortNames(_ names: [Int: String]) async throws {
-        let current = state?.ports.reduce(into: [Int: String]()) { result, port in
+        guard let currentState = state else { throw NoBaselineError() }
+        let current = currentState.ports.reduce(into: [Int: String]()) { result, port in
             if let number = port.number { result[number] = port.name }
-        } ?? [:]
+        }
 
         for (number, name) in names where name != (current[number] ?? "") {
             guard let port = PortNumber(number) else { continue }
