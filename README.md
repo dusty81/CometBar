@@ -21,6 +21,9 @@ machines — no web console, no reaching for another keyboard.
 - **Works with your specific dock.** Point CometBar at whichever dock or hub
   you use to tell it when you're "at your desk" — it doesn't assume one
   particular brand.
+- **Fix "everything's too small."** The KVM's virtual display often starts
+  at a resolution that makes text tiny. "Change Resolution…" in the menu
+  jumps straight to System Settings' scaled-resolution picker for it.
 
 ## Install
 
