@@ -225,6 +225,21 @@ struct MenuContent: View {
             }
         }
 
+        Divider()
+        // The classic per-mode CoreGraphics API (CGDisplayCopyAllDisplayModes)
+        // only ever reports one mode for the Comet X's virtual display — its
+        // scaled "looks like" resolutions (what System Settings' Displays
+        // pane shows: Larger Text/Default/More Space) are driven by a fully
+        // private, unversioned framework with no on-disk symbol table on
+        // recent macOS, too risky to call blind. Jumping straight to that
+        // pane is the reliable alternative — confirmed live to land exactly
+        // there via this URL scheme.
+        Button("Change Resolution…") {
+            NSWorkspace.shared.open(
+                URL(string: "x-apple.systempreferences:com.apple.Displays-Settings.extension")!
+            )
+        }
+
         if let error = model.lastError {
             Divider()
             Text("Error: \(error)")
