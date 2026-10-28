@@ -62,14 +62,21 @@ public actor CometClient {
         let videoLinks = (result["video"] as? [String: Any])?["links"] as? [Bool] ?? []
         let usbLinks = (result["usb_otg"] as? [String: Any])?["links"] as? [Bool] ?? []
 
+        // Newer firmware keeps names in the web UI's config store rather than
+        // on `model.ports[].name`. Best-effort: a failure here shouldn't take
+        // down the whole switch state, it just means falling back to the
+        // (pre-update) per-port names.
+        let configNames = (try? await configPortNames()) ?? []
+
         let ports: [SwitchState.Port] = rawPorts.compactMap { raw in
             guard let id = raw["id"] as? String,
                   let channel = raw["channel"] as? Int
             else { return nil }
+            let configName = configNames.indices.contains(channel) ? configNames[channel] : ""
             return SwitchState.Port(
                 id: id,
                 channel: channel,
-                name: raw["name"] as? String ?? "",
+                name: configName.isEmpty ? (raw["name"] as? String ?? "") : configName,
                 videoLinked: videoLinks.indices.contains(channel) ? videoLinks[channel] : false,
                 usbLinked: usbLinks.indices.contains(channel) ? usbLinks[channel] : false
             )
@@ -109,14 +116,42 @@ public actor CometClient {
 
     /// Sets a port's friendly name on the device itself.
     ///
-    /// Confirmed live on 2026-09-08: `set_port_params` takes `port` as the
-    /// same float-style ID `set_active` wants (`port=1.4`, never a channel
-    /// index) plus a `name` field, and touches only the name — video links,
-    /// ATX config, and the active port were all confirmed unchanged. Still,
-    /// per CLAUDE.md, don't extend this to other `set_port_params` fields
-    /// (EDID assignment etc.) without re-verifying against the live device.
+    /// Since the 2026-10 firmware update, names live in the web UI's
+    /// server-side config store (`config.port_names`, indexed by 0-based
+    /// channel) — the same place the device's own "Edit Port Name" dialog
+    /// writes. `set_config` replaces the WHOLE config, so this must be a
+    /// read-modify-write that sends every other key back untouched, or it
+    /// wipes the user's web UI settings (theme, language, tab title, …).
+    ///
+    /// The old `set_port_params?port=1.4&name=…` path still exists but its
+    /// names are no longer shown anywhere, so it isn't used.
     public func setPortName(_ port: PortNumber, name: String) async throws {
-        _ = try await post("/api/switch/set_port_params", query: ["port": port.apiValue, "name": name])
+        var config = try await serverConfig()
+        var names = (config["port_names"] as? [Any])?.map { $0 as? String ?? "" } ?? []
+        while names.count <= port.channel { names.append("") }
+        names[port.channel] = name
+        config["port_names"] = names
+        _ = try await post("/api/system/set_config", json: config)
+    }
+
+    // MARK: - Web UI config store
+
+    /// The web UI's persisted settings blob (`GET /api/system/get_config`).
+    /// Throws rather than returning `[:]` on an unexpected shape, because a
+    /// caller writing it back would otherwise erase every setting.
+    private func serverConfig() async throws -> [String: Any] {
+        let result = try await get("/api/system/get_config")
+        guard let config = result["config"] as? [String: Any] else {
+            throw CometError.decoding("get_config.config")
+        }
+        return config
+    }
+
+    /// Port names from the config store, by 0-based channel. Unset entries
+    /// (or `null`s) come back as "".
+    private func configPortNames() async throws -> [String] {
+        let names = try await serverConfig()["port_names"] as? [Any] ?? []
+        return names.map { $0 as? String ?? "" }
     }
 
     // MARK: - Transport
@@ -138,6 +173,13 @@ public actor CometClient {
 
     private func post(_ path: String, query: [String: String]) async throws -> [String: Any] {
         try await send(makeRequest(url(path, query: query), method: "POST"))
+    }
+
+    private func post(_ path: String, json body: [String: Any]) async throws -> [String: Any] {
+        var request = try makeRequest(url(path), method: "POST")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await send(request)
     }
 
     private func makeRequest(_ url: URL, method: String) throws -> URLRequest {

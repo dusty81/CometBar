@@ -57,6 +57,18 @@ Never hardcode it, never log it. Read it with `SecItemCopyMatching`.
 | `/api/info` | GET | Firmware, health, enabled extras |
 | `/api/streamer` | GET | Video stream params |
 | `/api/hid` | GET | Exists, not explored |
+| `/api/system/get_config` | GET | Web UI settings blob, `result.config` — **port names live here** (`port_names`) since the 2026-10 firmware |
+| `/api/system/set_config` | POST | JSON body = the **whole** config; replaces it. Always read-modify-write |
+
+### Port names (changed in the 2026-10 firmware update)
+
+Names moved out of `/api/switch` `model.ports[].name` (which the web UI no
+longer reads) into `config.port_names` — an array of strings indexed by
+**0-based channel**, possibly shorter than 4 or containing nulls; the web UI
+falls back to "Port1"… for empty entries. Found by reading the device's own
+web UI bundle (`switchPortControl` → `serverStorage.setStorage`), since the
+Keychain password isn't readable from a headless session. `CometClient` reads
+config names first and falls back to `model.ports[].name`.
 
 404 on `/api`, `/api/switch/state`, `/api/switch/set`, `/api/switch/ports`,
 `/api/switch/edids`, `/rpc`. Don't go looking for those again.
@@ -288,7 +300,7 @@ make app                          # assemble CometBar.app bundle
 - [ ] Is the Flexbar off the KVM'd USB path? (decides switch-back design)
 - [ ] `set_port_params` parameter names — needed for in-app EDID assignment
 - [ ] Does `/api/hid` allow sending keystrokes to the *other* hosts? (would be a nice extra)
-- [ ] Port naming: is `name` writable via `set_port_params`?
+- [x] Port naming: was `set_port_params` `name` (2026-09); now `set_config` `port_names` (2026-10 firmware)
 
 ## Don't
 
