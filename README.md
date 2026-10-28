@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/icon.png" alt="CometBar app icon" width="128" height="128">
+</p>
+
 # CometBar
 
 A macOS menu bar app for switching your **GL.iNet Comet X** KVM between
@@ -11,8 +15,8 @@ machines — no web console, no reaching for another keyboard.
 - **See what's live before you switch.** Each port shows whether its monitor
   and keyboard/mouse are actually connected, refreshed automatically.
 - **Name your ports.** Call them "Work MBP", "Personal Mini" — whatever makes
-  sense to you. Names live on the KVM itself, so they show up the same way
-  on every Mac you run CometBar on.
+  sense to you. Names live on the KVM itself (shared with its web UI), so
+  they show up the same way on every Mac you run CometBar on.
 - **Stay awake while docked.** Optional: closing your laptop lid normally
   puts it to sleep, which is a problem when the KVM has switched away and
   taken your only display with it. CometBar can keep your Mac awake while
