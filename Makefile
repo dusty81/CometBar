@@ -1,19 +1,16 @@
 APP        := CometBar
 BUNDLE     := build/$(APP).app
 CONFIG     := release
-# A stable local self-signed identity, not ad-hoc (-). Ad-hoc signatures have
-# no certificate identity, so Keychain access-control entries end up pinned
-# to the exact binary hash — every rebuild produces a new hash, so macOS
-# re-prompted for the Keychain password on every single rebuild. Signing with
-# a real (if local-only) certificate keeps that identity stable across
-# rebuilds. Set up once via:
-#   openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 3650 -nodes \
-#     -subj "/CN=CometBar Local Dev" -addext "keyUsage=critical,digitalSignature" \
-#     -addext "extendedKeyUsage=codeSigning" -addext "basicConstraints=critical,CA:true"
-#   openssl pkcs12 -export -legacy -out cometbar.p12 -inkey key.pem -in cert.pem -passout pass:temporary
-#   security import cometbar.p12 -k ~/Library/Keychains/login.keychain-db -P temporary -T /usr/bin/codesign -A
-#   security add-trusted-cert -p codeSign -k ~/Library/Keychains/login.keychain-db cert.pem
-SIGN_IDENTITY := CometBar Local Dev
+# A stable certificate identity, not ad-hoc (-). Ad-hoc signatures have no
+# certificate identity, so Keychain access-control entries end up pinned to
+# the exact binary hash — every rebuild produces a new hash, so macOS
+# re-prompted for the Keychain password on every single rebuild.
+#
+# Was a self-signed "CometBar Local Dev" cert until 2026-10, when it went
+# missing from the login keychain; switched to the Developer ID identity,
+# which is stable across rebuilds and machines. Override with
+# `make SIGN_IDENTITY="..."` if needed.
+SIGN_IDENTITY := Developer ID Application: Dustin Schnabel (7A5993N4F2)
 
 .PHONY: all build test cli app install clean
 
