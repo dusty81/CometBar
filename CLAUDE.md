@@ -303,6 +303,33 @@ make app                          # assemble CometBar.app bundle
 - Port numbers are 1-based at every boundary the user touches; convert to
   channel indices only at the last moment.
 
+## Self-update (since 1.0)
+
+Ported from Limbac's updater (`~/Git/Limbac`, `UpdateChecker`/`UpdateModels`),
+with differences because this repo is **public**:
+
+- Unauthenticated `URLSession` to `api.github.com`, **not** `gh` (other users
+  don't have it). 60 req/hour/IP unauthenticated; one check a day is fine.
+- **Signature check before the swap** (`UpdateInstaller.verifySignature`):
+  Apple-anchored, team `7A5993N4F2`, identifier `com.djs.cometbar`, strict
+  nested validation. Never weaken or bypass it — without it the updater is
+  remote code execution for anyone who can tamper with a release asset. The
+  downloaded bundle's version must also equal the release tag.
+- No Telegram notifier (no bots here). A pending update shows as a ⬇︎ badge
+  in the menu bar label plus menu items.
+- The root daemon can't be updated by the app. `DaemonVersionCheck` compares
+  the installed `/usr/local/libexec/kvm-clamshelld` with the bundled copy;
+  when they differ, the menu offers "Update Background Helper…"
+  (`DaemonInstaller`, standard admin prompt).
+
+**Releasing:** bump `Info.plist`, `make release` (builds, signs, and zips to
+`build/CometBar.zip` with ditto), tag `vX.Y.Z`, then
+`gh release create vX.Y.Z build/CometBar.zip`. Exactly one `.zip` asset,
+containing `CometBar.app` at the top level, or clients won't find it.
+`swift test` needs `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`
+(CommandLineTools has no XCTest); `COMETBAR_NETWORK_TESTS=1` adds a live
+fetch-verify-install test against real releases.
+
 ## Open questions
 
 - [ ] Does clamshell survive switch cycles with the current EDID? (decides whether pmset stays)

@@ -10,8 +10,15 @@ struct CometBarApp: App {
             MenuContent(model: model)
         } label: {
             // The label is the menu bar item itself. Showing the active port
-            // number is the whole value of this app at a glance.
-            Image(systemName: model.menuBarSymbol)
+            // number is the whole value of this app at a glance. A pending
+            // update adds a download badge after it — one Text, because a
+            // MenuBarExtra label only reliably renders a single view.
+            if model.updates.pendingUpdate != nil {
+                Text(Image(systemName: model.menuBarSymbol))
+                    + Text(Image(systemName: "arrow.down.circle.fill"))
+            } else {
+                Image(systemName: model.menuBarSymbol)
+            }
         }
         .menuBarExtraStyle(.menu)
 
@@ -58,6 +65,7 @@ final class AppModel {
     private var refreshTask: Task<Void, Never>?
     private var hotKeyManager: HotKeyManager?
     private let switchingOverlay = SwitchingOverlay()
+    let updates = UpdateChecker()
 
     init() {
         let loaded = SettingsStore.load()
@@ -86,6 +94,8 @@ final class AppModel {
         }
         hotKeys.register()
         hotKeyManager = hotKeys
+
+        updates.start()
     }
 
     var menuBarSymbol: String {
@@ -270,6 +280,19 @@ struct MenuContent: View {
             Text("Error: \(error)")
         }
 
+        if let update = model.updates.pendingUpdate {
+            Divider()
+            Button(model.updates.isInstalling ? "Installing \(update.version.description)…" : "Update to \(update.version.description) and Relaunch") {
+                Task { await model.updates.installPendingUpdate(relaunch: true) }
+            }
+            .disabled(model.updates.isInstalling)
+            Button("What's New in \(update.version.description)…") { model.updates.openReleasesPage() }
+        }
+        if model.updates.daemonOutdated {
+            Divider()
+            Button("Update Background Helper…") { updateDaemon() }
+        }
+
         Divider()
         Text(model.dockPresent ? "Dock: attached" : "Dock: not attached")
         Button("Refresh") { model.refresh() }
@@ -295,8 +318,27 @@ struct MenuContent: View {
                 }
             })
         Divider()
-        Button("Quit") { NSApplication.shared.terminate(nil) }
-            .keyboardShortcut("q")
+        Button("Quit") {
+            Task {
+                await model.updates.installBeforeQuittingIfNeeded()
+                NSApplication.shared.terminate(nil)
+            }
+        }
+        .keyboardShortcut("q")
+    }
+
+    /// The root daemon can't be replaced by an app update; re-run the bundled
+    /// installer, which shows the standard admin-password prompt.
+    private func updateDaemon() {
+        NSApp.activate(ignoringOtherApps: true)
+        do {
+            try DaemonInstaller.installDaemon()
+        } catch DaemonInstaller.InstallError.cancelled {
+            // User dismissed the password prompt.
+        } catch {
+            NSLog("CometBar: background helper update failed: \(error.localizedDescription)")
+        }
+        model.updates.refreshDaemonStatus()
     }
 
     private func name(for port: SwitchState.Port, state: SwitchState) -> String {

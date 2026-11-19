@@ -19,7 +19,7 @@ struct SettingsView: View {
     let model: AppModel
 
     enum Tab: String, CaseIterable, Identifiable {
-        case general, connection, ports, switching, power
+        case general, connection, ports, switching, power, updates
 
         var id: String { rawValue }
 
@@ -30,6 +30,7 @@ struct SettingsView: View {
             case .ports: return "Ports"
             case .switching: return "Switching"
             case .power: return "Power"
+            case .updates: return "Updates"
             }
         }
 
@@ -40,6 +41,7 @@ struct SettingsView: View {
             case .ports: return "rectangle.grid.2x2"
             case .switching: return "arrow.left.arrow.right"
             case .power: return "bolt.fill"
+            case .updates: return "arrow.down.circle"
             }
         }
     }
@@ -101,6 +103,7 @@ struct SettingsView: View {
         case .ports: portsPane
         case .switching: switchingPane
         case .power: powerPane
+        case .updates: UpdatesPane(updates: model.updates)
         }
     }
 

@@ -60,6 +60,17 @@ USB devices by name. Pick whichever one is your dock (or hub) so CometBar
 knows when you're "at your desk." This is per-machine, since different Macs
 and different docks show up differently.
 
+**Updates** — from 1.0 on, CometBar checks GitHub Releases once a day. When
+a new version is out, a small ⬇︎ badge appears next to the port number in
+the menu bar, and the menu offers **Update to x.y.z and Relaunch**. A
+download is only installed if it's signed by CometBar's developer; anything
+else is refused and your current copy is left alone. Settings → Updates lets
+you skip patch releases, install automatically on quit or right away, or
+turn checking off. The clamshell background helper runs as root, so app
+updates can't replace it: when it's out of date, the menu shows **Update
+Background Helper…**, which asks for your admin password. CometBar needs to
+be in a folder you can write to (like /Applications) to update itself.
+
 **Moving to another Mac** — install CometBar there too. Your port names come
 along automatically (they live on the KVM), but you'll need to enter that
 machine's Comet X password and pick its dock once — those live on the Mac,

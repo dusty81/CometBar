@@ -12,7 +12,7 @@ CONFIG     := release
 # `make SIGN_IDENTITY="..."` if needed.
 SIGN_IDENTITY := Developer ID Application: Dustin Schnabel (7A5993N4F2)
 
-.PHONY: all build test cli app install clean
+.PHONY: all build test cli app release install clean
 
 all: build
 
@@ -46,6 +46,14 @@ app: build
 	@echo "Built $(BUNDLE) — run it with: open $(BUNDLE)"
 	@echo "Install the clamshell daemon with:"
 	@echo "  sudo $(BUNDLE)/Contents/Resources/install-clamshell-daemon.sh"
+
+# The GitHub release asset. ditto (not zip) keeps the bundle's signature
+# layout intact; the in-app updater expects CometBar.app at the archive root.
+release: app
+	rm -f build/$(APP).zip
+	cd build && ditto -c -k --keepParent $(APP).app $(APP).zip
+	codesign --verify --deep --strict $(BUNDLE)
+	@echo "Built build/$(APP).zip"
 
 # Locally signed only (see SIGN_IDENTITY above), not notarized — Gatekeeper
 # will still quarantine this on any Mac other than the one it was built on.
