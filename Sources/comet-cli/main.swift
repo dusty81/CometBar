@@ -125,6 +125,9 @@ case "clamshell":
         guard arguments[1] == "on" || arguments[1] == "off" else { usage() }
         do {
             try ClamshellController.setControlEnabled(arguments[1] == "on")
+            // The root daemon can't read this user's defaults; mirror the
+            // configured dock for it (GitHub issue #1).
+            try ClamshellController.writeSharedDockVendorID(settings.dockVendorID)
             print("Clamshell control \(arguments[1]). The kvm-clamshelld daemon applies it on the next reconcile.")
         } catch { fail(error) }
     } else {
@@ -133,6 +136,8 @@ case "clamshell":
             print("Lid-close sleep : \(disabled ? "DISABLED (stays awake)" : "ENABLED (normal)")")
             print("Control flag    : \(ClamshellController.isControlEnabled() ? "on" : "off")")
             print("Daemon installed: \(ClamshellController.isDaemonInstalled() ? "yes" : "no")")
+            let shared = ClamshellController.sharedDockVendorID()
+            print("Daemon dock ID  : \(shared.map { String(format: "0x%X", $0) } ?? "not shared (daemon uses OWC default)")")
         } catch { fail(error) }
     }
 

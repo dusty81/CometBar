@@ -166,6 +166,18 @@ final class AppModel {
         watcher.start()
         dockWatcher = watcher
         dockPresent = watcher.isDockPresent()
+        shareDockVendorIDWithDaemon()
+    }
+
+    /// The root clamshell daemon can't read this user's UserDefaults, so
+    /// mirror the vendor ID into the shared file it watches (GitHub issue #1).
+    /// Runs at launch too, so existing installs sync without a re-save.
+    private func shareDockVendorIDWithDaemon() {
+        do {
+            try ClamshellController.writeSharedDockVendorID(settings.dockVendorID)
+        } catch {
+            NSLog("CometBar: couldn't share dock vendor ID with kvm-clamshelld: \(error.localizedDescription)")
+        }
     }
 
     /// Writes changed port names to the device (skipping unchanged ones to

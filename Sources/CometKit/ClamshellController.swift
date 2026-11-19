@@ -73,6 +73,42 @@ public struct ClamshellController: Sendable {
         try (enabled ? "1" : "0").write(to: controlFlagURL, atomically: false, encoding: .utf8)
     }
 
+    /// The dock vendor ID the daemon should watch for, as decimal text.
+    ///
+    /// The app keeps `dockVendorID` in the user's UserDefaults, but the
+    /// daemon runs as root and so reads root's (empty) `com.djs.cometbar`
+    /// domain — it never saw the configured value and fell back to the OWC
+    /// default, reporting "Dock present: false" with any other dock attached
+    /// (GitHub issue #1). This file shares the value the same way
+    /// `controlFlagURL` shares the on/off flag. It lives in the same
+    /// user-owned directory, so the app can create it without privileges.
+    public static let dockVendorIDURL = URL(
+        fileURLWithPath: "/Library/Application Support/CometKit/dock-vendor-id"
+    )
+
+    /// The vendor ID from `dockVendorIDURL`, or nil if the file is missing or
+    /// malformed (the daemon then falls back to `CometSettings.defaultDockVendorID`).
+    public static func sharedDockVendorID(at url: URL = dockVendorIDURL) -> Int? {
+        guard let raw = try? String(contentsOf: url, encoding: .utf8),
+              let value = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+              value > 0
+        else { return nil }
+        return value
+    }
+
+    /// Writes the vendor ID for the daemon. A no-op (returns false) when the
+    /// daemon's directory doesn't exist yet — i.e. the daemon isn't installed
+    /// and there's nobody to share it with. Skips the write if unchanged.
+    @discardableResult
+    public static func writeSharedDockVendorID(_ vendorID: Int, to url: URL = dockVendorIDURL) throws -> Bool {
+        guard FileManager.default.fileExists(atPath: url.deletingLastPathComponent().path) else {
+            return false
+        }
+        if sharedDockVendorID(at: url) == vendorID { return true }
+        try String(vendorID).write(to: url, atomically: true, encoding: .utf8)
+        return true
+    }
+
     public static func isDaemonInstalled() -> Bool {
         FileManager.default.fileExists(atPath: daemonPlistURL.path)
     }

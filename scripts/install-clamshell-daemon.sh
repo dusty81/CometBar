@@ -81,6 +81,18 @@ fi
 chown "${TARGET_USER}:staff" "$CONTROL_FILE"
 chmod 644 "$CONTROL_FILE"
 
+# The daemon runs as root, so it can't read the dock vendor ID from the
+# user's com.djs.cometbar defaults (GitHub issue #1). Seed the shared file
+# from them; CometBar keeps it in sync after that.
+VENDOR_FILE="${CONTROL_DIR}/dock-vendor-id"
+VENDOR_ID="$(sudo -u "$TARGET_USER" defaults read com.djs.cometbar comet.dockVendorID 2>/dev/null || true)"
+if [[ "$VENDOR_ID" =~ ^[0-9]+$ ]]; then
+    echo "Sharing dock vendor ID ${VENDOR_ID} with the daemon..."
+    printf '%s' "$VENDOR_ID" > "$VENDOR_FILE"
+    chown "${TARGET_USER}:staff" "$VENDOR_FILE"
+    chmod 644 "$VENDOR_FILE"
+fi
+
 echo "Writing LaunchDaemon plist to ${PLIST_PATH}..."
 cat > "$PLIST_PATH" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

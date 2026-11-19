@@ -17,6 +17,7 @@ LABEL="com.djs.kvm-clamshell"
 PLIST_PATH="/Library/LaunchDaemons/com.djs.kvm-clamshell.plist"
 INSTALLED_BINARY="/usr/local/libexec/kvm-clamshelld"
 CONTROL_FILE="/Library/Application Support/CometKit/clamshell-enabled"
+VENDOR_FILE="/Library/Application Support/CometKit/dock-vendor-id"
 
 echo "Restoring normal lid-close sleep..."
 pmset -a disablesleep 0 || true
@@ -26,6 +27,6 @@ if launchctl print "system/${LABEL}" >/dev/null 2>&1; then
     launchctl bootout system "${PLIST_PATH}" 2>/dev/null || true
 fi
 
-rm -f "$PLIST_PATH" "$INSTALLED_BINARY" "$CONTROL_FILE"
+rm -f "$PLIST_PATH" "$INSTALLED_BINARY" "$CONTROL_FILE" "$VENDOR_FILE"
 
 echo "Uninstalled. (Left /Library/Application Support/CometKit in place if other files are there.)"

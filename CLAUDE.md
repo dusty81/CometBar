@@ -175,6 +175,15 @@ privileges; the daemon (root) can always read it regardless of permissions
 and polls it every 10s. This is why option 1 was viable without XPC: the
 daemon needs no bidirectional channel, just a value to read.
 
+The dock vendor ID is shared the same way, via
+`ClamshellController.dockVendorIDURL` (`.../CometKit/dock-vendor-id`, decimal
+text). **The daemon must never read settings through `SettingsStore` /
+UserDefaults** — it runs as root, so it gets root's empty `com.djs.cometbar`
+domain and silently falls back to the OWC default (GitHub issue #1: "Dock
+present: false" with a CalDigit dock attached). CometBar rewrites the file at
+launch and whenever the dock setting changes; the installer seeds it from the
+user's defaults; the daemon re-reads it on its 10s tick.
+
 **Do not implement `SMAppService`+XPC or a sudoers `NOPASSWD` rule** — both
 were explicitly rejected (the former as unnecessary complexity now that the
 daemon exists, the latter as a compliance risk on a HITRUST/SOC 2-relevant
